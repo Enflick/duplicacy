@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 )
@@ -36,7 +37,19 @@ func CreateS3Storage(regionName string, endpoint string, bucketName string, stor
 
 	token := ""
 
-	auth := credentials.NewStaticCredentials(accessKey, secretKey, token)
+	auth := credentials.NewCredentials(&credentials.ChainProvider{
+		VerboseErrors: true,
+		Providers: []credentials.Provider{
+			&credentials.EnvProvider{},
+			&credentials.SharedCredentialsProvider{Filename: "", Profile: ""},
+			defaults.RemoteCredProvider(aws.Config{Region: aws.String(regionName)}, defaults.Handlers()),
+		},
+	})
+
+	// check whether it is possible to get credentials or not
+	if _, err := auth.Get(); err != nil {
+		auth = credentials.NewStaticCredentials(accessKey, secretKey, token)
+	}
 
 	if regionName == "" && endpoint == "" {
 		defaultRegionConfig := &aws.Config{
